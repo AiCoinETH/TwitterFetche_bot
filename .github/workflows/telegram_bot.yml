@@ -22,8 +22,9 @@ jobs:
         python -m playwright install
 
     - name: Run the bot
-      run: python bot.py
+      run: |
+        export SSL_CERT_FILE=$(python -m certifi)
+        python bot.py
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-        SSL_CERT_FILE: $(python -m certifi)
