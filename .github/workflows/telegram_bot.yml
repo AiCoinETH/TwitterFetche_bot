@@ -22,8 +22,11 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ca-certificates
+        python -m pip install --upgrade certifi
+        echo "SSL_CERT_FILE=$(python -m certifi)" >> $GITHUB_ENV
 
     - name: Run the bot
       run: python bot.py
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        SSL_CERT_FILE: ${{ env.SSL_CERT_FILE }}
