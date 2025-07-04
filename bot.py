@@ -1,3 +1,4 @@
+
 import os
 import re
 import time
@@ -22,7 +23,14 @@ def clean_text(text):
     return ' '.join(word for word in text.split() if not word.startswith('#'))
 
 def contains_link_or_dots(text):
-    return 'http://' in text or 'https://' in text or '...' in text or '\u2026' in text
+    return (
+        'http://' in text or
+        'https://' in text or
+        '...' in text or
+        '\u2026' in text or
+        text.strip().endswith('.') or
+        text.strip().endswith('…')
+    )
 
 def download_image(url, filename):
     response = requests.get(url)
