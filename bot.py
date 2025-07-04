@@ -34,6 +34,9 @@ def contains_link_or_dots(text):
         text.strip().endswith('…')
     )
 
+def is_retweet(text):
+    return text.startswith("Retweeted") or text.startswith("@")
+
 def download_image(url, filename):
     response = requests.get(url)
     if response.status_code == 200:
@@ -43,7 +46,7 @@ def download_image(url, filename):
     return None
 
 def send_to_telegram(text, image_urls):
-    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or text in posted_texts:
+    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text) or text in posted_texts:
         return  # Пропускаем неподходящие или повторяющиеся посты
 
     posted_texts.add(text)
@@ -70,7 +73,7 @@ def send_to_telegram(text, image_urls):
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
-    page = browser.new_page()
+    page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     for user in TWITTER_USERS:
         page.goto(f'https://twitter.com/{user}')
