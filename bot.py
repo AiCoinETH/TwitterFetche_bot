@@ -1,19 +1,21 @@
-
 import os
 import re
 import time
+import random
 import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright
 
 # Настройки
-TWITTER_USERS = ['cointelegraph', 'cryptobeastreal', 'rovercrc', 'bitcoinmagazine', 'whale_alert', 'aicoin_eth', 'openai']
+TWITTER_USERS = ['nasa', 'elonmusk']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+posted_texts = set()
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)  # Удаляет ссылки
@@ -41,9 +43,10 @@ def download_image(url, filename):
     return None
 
 def send_to_telegram(text, image_urls):
-    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text):
-        return  # Пропускаем неподходящие посты
+    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or text in posted_texts:
+        return  # Пропускаем неподходящие или повторяющиеся посты
 
+    posted_texts.add(text)
     media = []
     opened_files = []
 
@@ -71,7 +74,8 @@ with sync_playwright() as p:
 
     for user in TWITTER_USERS:
         page.goto(f'https://twitter.com/{user}')
-        page.wait_for_selector('article')
+        page.wait_for_timeout(5000)  # Дать странице загрузиться
+        page.wait_for_selector('article', timeout=60000)
         tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
 
         for tweet in tweets:
@@ -87,6 +91,6 @@ with sync_playwright() as p:
                     images.append(src)
 
             send_to_telegram(text, images)
-            time.sleep(60)  # Задержка между публикациями
+            time.sleep(random.randint(45, 90))  # Перерыв между публикациями
 
     browser.close()
