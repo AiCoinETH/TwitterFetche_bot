@@ -25,20 +25,25 @@ def download_image(url, filename):
 
 def send_to_telegram(text, image_urls):
     media = []
+    opened_files = []
+
     for idx, url in enumerate(image_urls):
         filename = f'image_{idx}.jpg'
         path = download_image(url, filename)
         if path:
-            media.append(InputMediaPhoto(open(path, 'rb')))
+            file = open(path, 'rb')
+            opened_files.append((file, path))
+            media.append(InputMediaPhoto(file))
 
     if media:
         bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
         bot.send_media_group(chat_id=TELEGRAM_CHANNEL_ID, media=media)
-        for m in media:
-            m.media.close()
-            os.remove(m.media.name)
     else:
         bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
+
+    for file, path in opened_files:
+        file.close()
+        os.remove(path)
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
