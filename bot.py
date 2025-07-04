@@ -1,7 +1,11 @@
 import os
-import snscrape.modules.twitter as sntwitter
+import certifi
 import requests
+import snscrape.modules.twitter as sntwitter
 from telegram import Bot, InputMediaPhoto
+
+# Установка правильного пути к SSL-сертификатам
+os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # === НАСТРОЙКИ ===
 TWITTER_USERS = ['nasa', 'elonmusk']  # список пользователей
