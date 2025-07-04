@@ -1,12 +1,13 @@
 import os
 import re
+import time
 import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright
 
 # Настройки
-TWITTER_USERS = ['ashcryptoreal', 'cointelegraph', 'senseibr_btc', 'cryptobeastreal', 'rovercrc', 'bitcoinmagazine', 'whale_alert', 'aicoin_eth', 'aicoin_eth', 'openai']
+TWITTER_USERS = ['nasa', 'elonmusk']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
@@ -14,8 +15,14 @@ MAX_TWEETS_PER_USER = 3
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 def clean_text(text):
-    text = re.sub(r'\b\d+[kKmM]?\b', '', text)  # Удаляет изолированные числа (включая 1.5k, 7M и т.п.)
+    text = re.sub(r'https?://\S+', '', text)  # Удаляет ссылки
+    text = re.sub(r'\b\d+[kKmM]?\b', '', text)  # Удаляет изолированные числа
+    text = text.replace('\u2026', '')  # Удаляет троеточия из Unicode (…)
+    text = text.replace('...', '')  # Удаляет обычные троеточия
     return ' '.join(word for word in text.split() if not word.startswith('#'))
+
+def contains_link_or_dots(text):
+    return re.search(r'https?://\S+', text) or text.strip().endswith('...')
 
 def download_image(url, filename):
     response = requests.get(url)
@@ -26,8 +33,8 @@ def download_image(url, filename):
     return None
 
 def send_to_telegram(text, image_urls):
-    if len(text) > 1024:
-        return  # Пропускаем слишком длинные посты
+    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text):
+        return  # Пропускаем неподходящие посты
 
     media = []
     opened_files = []
@@ -72,5 +79,6 @@ with sync_playwright() as p:
                     images.append(src)
 
             send_to_telegram(text, images)
+            time.sleep(60)  # Задержка между публикациями
 
     browser.close()
