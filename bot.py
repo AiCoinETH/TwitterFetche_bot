@@ -1,19 +1,14 @@
 import os
-import ssl
-import certifi
 import requests
-import snscrape.modules.twitter as sntwitter
+from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
+from playwright.sync_api import sync_playwright
 
-# 🛠 Установка сертификата для HTTPS
-os.environ['SSL_CERT_FILE'] = certifi.where()
-ssl._create_default_https_context = ssl.create_default_context(cafile=certifi.where())
-
-# === НАСТРОЙКИ ===
+# Настройки
 TWITTER_USERS = ['nasa', 'elonmusk']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
-MAX_TWEETS_PER_USER = 5
+MAX_TWEETS_PER_USER = 3
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
@@ -45,12 +40,27 @@ def send_to_telegram(text, image_urls):
     else:
         bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
 
-for user in TWITTER_USERS:
-    scraper = sntwitter.TwitterUserScraper(user)
-    for i, tweet in enumerate(scraper.get_items()):
-        if i >= MAX_TWEETS_PER_USER:
-            break
-        if tweet.content:
-            text = clean_text(tweet.content)
-            images = [media.fullUrl for media in tweet.media if hasattr(media, 'fullUrl')] if tweet.media else []
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+
+    for user in TWITTER_USERS:
+        page.goto(f'https://twitter.com/{user}')
+        page.wait_for_selector('article')
+        tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
+
+        for tweet in tweets:
+            html = tweet.inner_html()
+            soup = BeautifulSoup(html, 'html.parser')
+            content = ' '.join([el.get_text() for el in soup.find_all('span')])
+            text = clean_text(content)
+
+            images = []
+            for img in soup.find_all('img'):
+                src = img.get('src')
+                if 'profile_images' not in src and 'emoji' not in src:
+                    images.append(src)
+
             send_to_telegram(text, images)
+
+    browser.close()
