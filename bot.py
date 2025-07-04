@@ -78,7 +78,7 @@ with sync_playwright() as p:
     for user in TWITTER_USERS:
         page.goto(f'https://twitter.com/{user}')
         page.wait_for_timeout(5000)  # Дать странице загрузиться
-        page.wait_for_selector('article', timeout=60000)
+        page.wait_for_selector('article', timeout=300000)  # Увеличен таймаут до 5 минут
         tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
 
         for tweet in tweets:
