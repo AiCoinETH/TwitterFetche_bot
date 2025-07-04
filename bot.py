@@ -7,7 +7,7 @@ from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright
 
 # Настройки
-TWITTER_USERS = ['nasa', 'elonmusk']
+TWITTER_USERS = ['cointelegraph', 'cryptobeastreal', 'rovercrc', 'bitcoinmagazine', 'whale_alert', 'aicoin_eth', 'openai']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
@@ -22,7 +22,7 @@ def clean_text(text):
     return ' '.join(word for word in text.split() if not word.startswith('#'))
 
 def contains_link_or_dots(text):
-    return re.search(r'https?://\S+', text) or text.strip().endswith('...')
+    return 'http://' in text or 'https://' in text or '...' in text or '\u2026' in text
 
 def download_image(url, filename):
     response = requests.get(url)
