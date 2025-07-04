@@ -8,20 +8,28 @@ from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Настройки
-TWITTER_USERS = ['openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc', 'cryptobeastreal']
+TWITTER_USERS = ['openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc', 'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 posted_texts = set()
+last_post_times = {}
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'\b\d+[kKmM]?\b', '', text)
     text = text.replace('\u2026', '')
     text = text.replace('...', '')
-    return ' '.join(word for word in text.split() if not word.startswith('#'))
+
+    text = re.sub(r'\b(reposted|retweeted)\b', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'@\w+', '', text)
+    text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text, flags=re.IGNORECASE)
+
+    text = ' '.join(word for word in text.split() if not word.startswith('#'))
+    return text.strip()
 
 def contains_link_or_dots(text):
     return (
@@ -76,16 +84,28 @@ def send_to_telegram(text, image_urls):
             file.close()
             os.remove(path)
 
+def should_skip_user(user):
+    last_time = last_post_times.get(user)
+    if last_time and time.time() - last_time < 3600:
+        return True
+    return False
+
 with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     for user in TWITTER_USERS:
+        if should_skip_user(user):
+            print(f"[-] Пропускаем {user}, недавно публиковали.")
+            continue
+
         try:
             page.goto(f'https://twitter.com/{user}')
             page.wait_for_timeout(5000)
-            page.wait_for_selector('article', timeout=30000)  # 30 секунд — разумный лимит
+            page.wait_for_selector('article', timeout=30000)
             tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
+
+            new_posts_found = False
 
             for tweet in tweets:
                 html = tweet.inner_html()
@@ -99,8 +119,13 @@ with sync_playwright() as p:
                     if 'profile_images' not in src and 'emoji' not in src:
                         images.append(src)
 
-                send_to_telegram(text, images)
-                time.sleep(random.randint(45, 90))
+                if text not in posted_texts:
+                    send_to_telegram(text, images)
+                    new_posts_found = True
+                    time.sleep(random.randint(45, 90))
+
+            if new_posts_found:
+                last_post_times[user] = time.time()
 
         except PlaywrightTimeoutError:
             print(f"[!] Превышено время ожидания для пользователя: {user}")
