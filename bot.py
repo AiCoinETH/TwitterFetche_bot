@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
@@ -13,6 +14,7 @@ MAX_TWEETS_PER_USER = 3
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 def clean_text(text):
+    text = re.sub(r'\b\d+[kKmM]?\b', '', text)  # Удаляет изолированные числа (включая 1.5k, 7M и т.п.)
     return ' '.join(word for word in text.split() if not word.startswith('#'))
 
 def download_image(url, filename):
@@ -24,6 +26,9 @@ def download_image(url, filename):
     return None
 
 def send_to_telegram(text, image_urls):
+    if len(text) > 1024:
+        return  # Пропускаем слишком длинные посты
+
     media = []
     opened_files = []
 
@@ -36,7 +41,7 @@ def send_to_telegram(text, image_urls):
             media.append(InputMediaPhoto(file))
 
     if media:
-        bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
+        media[0].caption = text  # Текст прикрепляется к первой картинке
         bot.send_media_group(chat_id=TELEGRAM_CHANNEL_ID, media=media)
     else:
         bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
