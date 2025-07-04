@@ -1,7 +1,9 @@
 name: Run Twitter to Telegram Bot
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # каждый час
+  workflow_dispatch:     # позволяет запускать вручную
 
 jobs:
   run-bot:
@@ -18,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-        pip install snscrape certifi
+        pip install playwright certifi
         python -m playwright install
 
     - name: Run the bot
