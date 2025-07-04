@@ -6,7 +6,7 @@ from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright
 
 # Настройки
-TWITTER_USERS = ['nasa', 'elonmusk']
+TWITTER_USERS = ['ashcryptoreal', 'cointelegraph', 'senseibr_btc', 'cryptobeastreal', 'rovercrc', 'bitcoinmagazine', 'whale_alert', 'aicoin_eth', 'aicoin_eth', 'openai']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
