@@ -1,17 +1,19 @@
 import os
+import ssl
 import certifi
 import requests
 import snscrape.modules.twitter as sntwitter
 from telegram import Bot, InputMediaPhoto
 
-# Установка правильного пути к SSL-сертификатам
+# 🛠 Установка сертификата для HTTPS
 os.environ['SSL_CERT_FILE'] = certifi.where()
+ssl._create_default_https_context = ssl.create_default_context(cafile=certifi.where())
 
 # === НАСТРОЙКИ ===
-TWITTER_USERS = ['nasa', 'elonmusk']  # список пользователей
+TWITTER_USERS = ['nasa', 'elonmusk']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
-MAX_TWEETS_PER_USER = 5  # количество твитов с одного аккаунта
+MAX_TWEETS_PER_USER = 5
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
