@@ -5,6 +5,7 @@ import random
 import requests
 import json
 import hashlib
+import sqlite3
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
@@ -19,29 +20,41 @@ TWITTER_USERS = [
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
-POSTED_TEXTS_EXPIRY_DAYS = 2
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 last_post_times = {}
+DB_FILE = 'posted.db'
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS posted_hashes (
+            hash TEXT PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def is_hash_posted(text_hash):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT 1 FROM posted_hashes WHERE hash = ?', (text_hash,))
+    exists = c.fetchone() is not None
+    conn.close()
+    return exists
+
+def mark_hash_as_posted(text_hash):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('INSERT OR IGNORE INTO posted_hashes (hash) VALUES (?)', (text_hash,))
+    conn.commit()
+    conn.close()
 
 def get_text_hash(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
-
-def get_recent_messages(limit=20):
-    try:
-        updates = bot.get_updates()
-        messages = []
-        for update in updates[::-1]:
-            msg = update.message
-            if msg and msg.chat.id == int(TELEGRAM_CHANNEL_ID) and msg.text:
-                messages.append(msg.text.strip())
-                if len(messages) >= limit:
-                    break
-        return messages
-    except Exception as e:
-        print(f"[!] Ошибка получения истории Telegram: {e}")
-        return []
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
@@ -93,11 +106,8 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         print("[-] Сообщение отфильтровано")
         return
 
-    recent_texts = get_recent_messages()
-    recent_hashes = {get_text_hash(txt) for txt in recent_texts}
-
-    if text_hash in recent_hashes:
-        print("[-] Сообщение уже есть в Telegram, пропускаем")
+    if is_hash_posted(text_hash):
+        print("[-] Сообщение уже отправлено ранее, пропускаем")
         return
 
     media = []
@@ -119,6 +129,7 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
 
         print(f"[+] Отправлено сообщение: {cleaned_text[:60]}...")
+        mark_hash_as_posted(text_hash)
     except Exception as e:
         print(f"Ошибка при отправке в Telegram: {e}")
     finally:
@@ -129,6 +140,8 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
 def should_skip_user(user):
     last_time = last_post_times.get(user)
     return last_time and time.time() - last_time < 3600
+
+init_db()
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
