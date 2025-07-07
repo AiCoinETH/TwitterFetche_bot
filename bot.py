@@ -4,6 +4,7 @@ import time
 import random
 import requests
 import json
+import hashlib
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
@@ -22,8 +23,11 @@ POSTED_TEXTS_EXPIRY_DAYS = 2
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-# Загрузка истории отправленных сообщений
+print(f"[INIT] Текущая директория: {os.getcwd()}")
+print(f"[INIT] Ожидаемый файл: {os.path.abspath(POSTED_TEXTS_FILE)}")
+
 if os.path.exists(POSTED_TEXTS_FILE):
+    print("[INIT] Найден файл posted_texts.json, загружаем...")
     with open(POSTED_TEXTS_FILE, 'r', encoding='utf-8') as f:
         try:
             posted_texts = json.load(f)
@@ -32,15 +36,19 @@ if os.path.exists(POSTED_TEXTS_FILE):
         except json.JSONDecodeError:
             posted_texts = {}
 else:
+    print("[INIT] Файл posted_texts.json не найден, создаём пустой...")
     posted_texts = {}
 
 last_post_times = {}
 
+def get_text_hash(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
 def save_posted_texts():
     now = time.time()
     filtered = {
-        text: timestamp
-        for text, timestamp in posted_texts.items()
+        key: timestamp
+        for key, timestamp in posted_texts.items()
         if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
     }
     try:
@@ -89,8 +97,9 @@ def download_image(url, filename):
 
 def send_to_telegram(original_text, cleaned_text, image_urls):
     now = time.time()
+    text_hash = get_text_hash(cleaned_text)
 
-    print(f"[DEBUG] Cleaned text: {cleaned_text}")
+    print(f"[DEBUG] Хеш текста: {text_hash}")
 
     if not cleaned_text or len(cleaned_text) < 10:
         print("[-] Пропущено: слишком короткий или пустой текст")
@@ -100,7 +109,7 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         print("[-] Сообщение отфильтровано")
         return
 
-    if cleaned_text in posted_texts and now - posted_texts[cleaned_text] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
+    if text_hash in posted_texts and now - posted_texts[text_hash] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
         print("[-] Сообщение уже опубликовано недавно")
         return
 
@@ -122,7 +131,7 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         else:
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
 
-        posted_texts[cleaned_text] = now
+        posted_texts[text_hash] = now
         print(f"[DEBUG] posted_texts обновлён: {posted_texts}")
         save_posted_texts()
         print(f"[+] Отправлено сообщение и сохранено: {cleaned_text[:60]}...")
