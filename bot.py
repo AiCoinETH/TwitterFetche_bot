@@ -91,23 +91,22 @@ def download_image(url, filename):
         print(f"Ошибка при загрузке изображения: {e}")
     return None
 
-def send_to_telegram(text, image_urls):
+def send_to_telegram(original_text, cleaned_text, image_urls):
     now = time.time()
-    text = clean_text(text)
 
-    if not text or len(text) < 10:
+    if not cleaned_text or len(cleaned_text) < 10:
         print("[-] Пропущено: слишком короткий или пустой текст")
         return
 
-    if len(text) > 1024 or contains_link_or_dots(text) or is_retweet(text):
+    if len(cleaned_text) > 1024 or contains_link_or_dots(cleaned_text) or is_retweet(cleaned_text):
         print("[-] Сообщение отфильтровано")
         return
 
-    if text in posted_texts and now - posted_texts[text] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
+    if cleaned_text in posted_texts and now - posted_texts[cleaned_text] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
         print("[-] Сообщение уже опубликовано недавно")
         return
 
-    posted_texts[text] = now
+    posted_texts[cleaned_text] = now
     save_posted_texts()
 
     media = []
@@ -123,11 +122,11 @@ def send_to_telegram(text, image_urls):
 
     try:
         if media:
-            media[0].caption = text
+            media[0].caption = cleaned_text
             bot.send_media_group(chat_id=TELEGRAM_CHANNEL_ID, media=media)
         else:
-            bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
-        print(f"[+] Отправлено сообщение: {text[:60]}...")
+            bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
+        print(f"[+] Отправлено сообщение: {cleaned_text[:60]}...")
     except Exception as e:
         print(f"Ошибка при отправке в Telegram: {e}")
     finally:
@@ -160,9 +159,10 @@ with sync_playwright() as p:
                 html = tweet.inner_html()
                 soup = BeautifulSoup(html, 'html.parser')
                 content = ' '.join([el.get_text() for el in soup.find_all('span')])
+                cleaned = clean_text(content)
                 images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
 
-                send_to_telegram(content, images)
+                send_to_telegram(content, cleaned, images)
                 new_posts_found = True
                 time.sleep(random.randint(45, 90))
 
