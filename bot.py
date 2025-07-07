@@ -106,9 +106,6 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         print("[-] Сообщение уже опубликовано недавно")
         return
 
-    posted_texts[cleaned_text] = now
-    save_posted_texts()
-
     media = []
     opened_files = []
 
@@ -126,7 +123,10 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
             bot.send_media_group(chat_id=TELEGRAM_CHANNEL_ID, media=media)
         else:
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
-        print(f"[+] Отправлено сообщение: {cleaned_text[:60]}...")
+
+        posted_texts[cleaned_text] = now
+        save_posted_texts()
+        print(f"[+] Отправлено сообщение и сохранено: {cleaned_text[:60]}...")
     except Exception as e:
         print(f"Ошибка при отправке в Telegram: {e}")
     finally:
