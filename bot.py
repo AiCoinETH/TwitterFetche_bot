@@ -28,6 +28,9 @@ def clean_text(text):
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text, flags=re.IGNORECASE)
 
+    # Удалить повторы слов в начале (например: "Crypto Rover Crypto Rover ·")
+    text = re.sub(r'^((\b\w+\b)[ \t]+)+\2[ \t]*·[ \t]*', '', text)
+
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
 
