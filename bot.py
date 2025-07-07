@@ -22,22 +22,15 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 # Загрузка истории отправленных сообщений
 if os.path.exists(POSTED_TEXTS_FILE):
     with open(POSTED_TEXTS_FILE, 'r') as f:
-        loaded = json.load(f)
-        posted_texts = {item["text"]: item["timestamp"] for item in loaded}
+        posted_texts = set(json.load(f))
 else:
-    posted_texts = {}
+    posted_texts = set()
 
 last_post_times = {}
 
 def save_posted_texts():
-    now = time.time()
-    filtered = [
-        {"text": text, "timestamp": timestamp}
-        for text, timestamp in posted_texts.items()
-        if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
-    ]
     with open(POSTED_TEXTS_FILE, 'w') as f:
-        json.dump(filtered, f)
+        json.dump(list(posted_texts), f)
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
@@ -80,17 +73,11 @@ def download_image(url, filename):
         print(f"Ошибка при загрузке изображения: {e}")
     return None
 
-def is_duplicate(text):
-    for posted in posted_texts:
-        if text.strip() == posted.strip():
-            return True
-    return False
-
 def send_to_telegram(text, image_urls):
-    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text) or is_duplicate(text):
+    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text) or text in posted_texts:
         return
 
-    posted_texts[text] = time.time()
+    posted_texts.add(text)
     save_posted_texts()
 
     media = []
