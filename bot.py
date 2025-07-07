@@ -8,6 +8,7 @@ import hashlib
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
+from telegram.ext import Updater
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Настройки
@@ -18,46 +19,29 @@ TWITTER_USERS = [
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
-POSTED_TEXTS_FILE = os.path.join(os.path.dirname(__file__), 'posted_texts.json')
 POSTED_TEXTS_EXPIRY_DAYS = 2
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-
-print(f"[INIT] Текущая директория: {os.getcwd()}")
-print(f"[INIT] Ожидаемый файл: {os.path.abspath(POSTED_TEXTS_FILE)}")
-
-if os.path.exists(POSTED_TEXTS_FILE):
-    print("[INIT] Найден файл posted_texts.json, загружаем...")
-    with open(POSTED_TEXTS_FILE, 'r', encoding='utf-8') as f:
-        try:
-            posted_texts = json.load(f)
-            if not isinstance(posted_texts, dict):
-                posted_texts = {}
-        except json.JSONDecodeError:
-            posted_texts = {}
-else:
-    print("[INIT] Файл posted_texts.json не найден, создаём пустой...")
-    posted_texts = {}
 
 last_post_times = {}
 
 def get_text_hash(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
-def save_posted_texts():
-    now = time.time()
-    filtered = {
-        key: timestamp
-        for key, timestamp in posted_texts.items()
-        if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
-    }
+def get_recent_messages(limit=20):
     try:
-        print(f"[!] Запись в файл: {filtered}")
-        with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(filtered, f, ensure_ascii=False, indent=2)
-        print(f"[+] Сохранено {len(filtered)} записей в {POSTED_TEXTS_FILE}")
+        updates = bot.get_updates()
+        messages = []
+        for update in updates[::-1]:
+            msg = update.message
+            if msg and msg.chat.id == int(TELEGRAM_CHANNEL_ID) and msg.text:
+                messages.append(msg.text.strip())
+                if len(messages) >= limit:
+                    break
+        return messages
     except Exception as e:
-        print(f"[!] Ошибка при сохранении posted_texts: {e}")
+        print(f"[!] Ошибка получения истории Telegram: {e}")
+        return []
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
@@ -109,8 +93,11 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         print("[-] Сообщение отфильтровано")
         return
 
-    if text_hash in posted_texts and now - posted_texts[text_hash] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
-        print("[-] Сообщение уже опубликовано недавно")
+    recent_texts = get_recent_messages()
+    recent_hashes = {get_text_hash(txt) for txt in recent_texts}
+
+    if text_hash in recent_hashes:
+        print("[-] Сообщение уже есть в Telegram, пропускаем")
         return
 
     media = []
@@ -131,10 +118,7 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
         else:
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
 
-        posted_texts[text_hash] = now
-        print(f"[DEBUG] posted_texts обновлён: {posted_texts}")
-        save_posted_texts()
-        print(f"[+] Отправлено сообщение и сохранено: {cleaned_text[:60]}...")
+        print(f"[+] Отправлено сообщение: {cleaned_text[:60]}...")
     except Exception as e:
         print(f"Ошибка при отправке в Telegram: {e}")
     finally:
