@@ -26,12 +26,8 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 if os.path.exists(POSTED_TEXTS_FILE):
     with open(POSTED_TEXTS_FILE, 'r', encoding='utf-8') as f:
         try:
-            posted_texts_raw = json.load(f)
-            if isinstance(posted_texts_raw, list):
-                posted_texts = {item['text']: item['timestamp'] for item in posted_texts_raw if isinstance(item, dict)}
-            elif isinstance(posted_texts_raw, dict):
-                posted_texts = posted_texts_raw
-            else:
+            posted_texts = json.load(f)
+            if not isinstance(posted_texts, dict):
                 posted_texts = {}
         except json.JSONDecodeError:
             posted_texts = {}
@@ -42,11 +38,11 @@ last_post_times = {}
 
 def save_posted_texts():
     now = time.time()
-    filtered = [
-        {"text": text, "timestamp": timestamp}
+    filtered = {
+        text: timestamp
         for text, timestamp in posted_texts.items()
         if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
-    ]
+    }
     try:
         print(f"[!] Запись в файл: {filtered}")
         with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
@@ -94,6 +90,8 @@ def download_image(url, filename):
 def send_to_telegram(original_text, cleaned_text, image_urls):
     now = time.time()
 
+    print(f"[DEBUG] Cleaned text: {cleaned_text}")
+
     if not cleaned_text or len(cleaned_text) < 10:
         print("[-] Пропущено: слишком короткий или пустой текст")
         return
@@ -125,6 +123,7 @@ def send_to_telegram(original_text, cleaned_text, image_urls):
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=cleaned_text)
 
         posted_texts[cleaned_text] = now
+        print(f"[DEBUG] posted_texts обновлён: {posted_texts}")
         save_posted_texts()
         print(f"[+] Отправлено сообщение и сохранено: {cleaned_text[:60]}...")
     except Exception as e:
