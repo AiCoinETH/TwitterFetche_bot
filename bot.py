@@ -48,6 +48,7 @@ def save_posted_texts():
         if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
     ]
     try:
+        print(f"[!] Запись в файл: {filtered}")
         with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
             json.dump(filtered, f, ensure_ascii=False, indent=2)
         print(f"[+] Сохранено {len(filtered)} записей в {POSTED_TEXTS_FILE}")
@@ -94,7 +95,11 @@ def send_to_telegram(text, image_urls):
     now = time.time()
     text = clean_text(text)
 
-    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text):
+    if not text or len(text) < 10:
+        print("[-] Пропущено: слишком короткий или пустой текст")
+        return
+
+    if len(text) > 1024 or contains_link_or_dots(text) or is_retweet(text):
         print("[-] Сообщение отфильтровано")
         return
 
