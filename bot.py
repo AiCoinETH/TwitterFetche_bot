@@ -80,8 +80,14 @@ def download_image(url, filename):
         print(f"Ошибка при загрузке изображения: {e}")
     return None
 
+def is_duplicate(text):
+    for posted in posted_texts:
+        if text.strip() == posted.strip():
+            return True
+    return False
+
 def send_to_telegram(text, image_urls):
-    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text) or text in posted_texts:
+    if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text) or is_duplicate(text):
         return
 
     posted_texts[text] = time.time()
@@ -146,10 +152,9 @@ with sync_playwright() as p:
                     if 'profile_images' not in src and 'emoji' not in src:
                         images.append(src)
 
-                if text not in posted_texts:
-                    send_to_telegram(text, images)
-                    new_posts_found = True
-                    time.sleep(random.randint(45, 90))
+                send_to_telegram(text, images)
+                new_posts_found = True
+                time.sleep(random.randint(45, 90))
 
             if new_posts_found:
                 last_post_times[user] = time.time()
