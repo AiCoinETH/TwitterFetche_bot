@@ -8,7 +8,7 @@ from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Настройки
-TWITTER_USERS = ['openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc', 'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru']
+TWITTER_USERS = ['aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc', 'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru']
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
