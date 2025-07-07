@@ -22,9 +22,12 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 # Загрузка истории отправленных сообщений
 if os.path.exists(POSTED_TEXTS_FILE):
     with open(POSTED_TEXTS_FILE, 'r') as f:
-        posted_texts = json.load(f)
-        if isinstance(posted_texts, list):
-            posted_texts = {item['text']: item['timestamp'] for item in posted_texts if isinstance(item, dict)}
+        try:
+            posted_texts = json.load(f)
+            if isinstance(posted_texts, list):
+                posted_texts = {item['text']: item['timestamp'] for item in posted_texts if isinstance(item, dict)}
+        except json.JSONDecodeError:
+            posted_texts = {}
 else:
     posted_texts = {}
 
@@ -37,7 +40,7 @@ def save_posted_texts():
         for text, timestamp in posted_texts.items()
         if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
     ]
-    with open(POSTED_TEXTS_FILE, 'w') as f:
+    with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(filtered, f, ensure_ascii=False, indent=2)
 
 def clean_text(text):
@@ -49,11 +52,11 @@ def clean_text(text):
     text = re.sub(r'\b(reposted|retweeted)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(\w+)( \1\b)+', r'\1', text, flags=re.IGNORECASE)
 
     # Удалить повторы слов в начале (например: "Crypto Rover Crypto Rover ·")
-    text = re.sub(r'^((\b\w+\b)[ \t]+)+\2[ \t]*·[ \t]*', '', text)
+    text = re.sub(r'^(\b\w+\b)( \1\b)+[\s·]*', r'\1 ', text, flags=re.IGNORECASE)
 
+    text = re.sub(r'\s+', ' ', text)
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
 
@@ -83,6 +86,8 @@ def download_image(url, filename):
 
 def send_to_telegram(text, image_urls):
     now = time.time()
+    text = clean_text(text)
+
     if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text):
         return
 
@@ -143,15 +148,9 @@ with sync_playwright() as p:
                 html = tweet.inner_html()
                 soup = BeautifulSoup(html, 'html.parser')
                 content = ' '.join([el.get_text() for el in soup.find_all('span')])
-                text = clean_text(content)
+                images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
 
-                images = []
-                for img in soup.find_all('img'):
-                    src = img.get('src')
-                    if 'profile_images' not in src and 'emoji' not in src:
-                        images.append(src)
-
-                send_to_telegram(text, images)
+                send_to_telegram(content, images)
                 new_posts_found = True
                 time.sleep(random.randint(45, 90))
 
