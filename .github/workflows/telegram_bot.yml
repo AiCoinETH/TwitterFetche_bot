@@ -23,6 +23,7 @@ jobs:
           pip install -r requirements.txt
           pip install playwright certifi
           python -m playwright install
+          python -m playwright install-deps
 
       - name: Run the bot
         env:
