@@ -10,7 +10,10 @@ from telegram import Bot, InputMediaPhoto
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Настройки
-TWITTER_USERS = ['openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc', 'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru']
+TWITTER_USERS = [
+    'openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc',
+    'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru'
+]
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
@@ -21,11 +24,15 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # Загрузка истории отправленных сообщений
 if os.path.exists(POSTED_TEXTS_FILE):
-    with open(POSTED_TEXTS_FILE, 'r') as f:
+    with open(POSTED_TEXTS_FILE, 'r', encoding='utf-8') as f:
         try:
-            posted_texts = json.load(f)
-            if isinstance(posted_texts, list):
-                posted_texts = {item['text']: item['timestamp'] for item in posted_texts if isinstance(item, dict)}
+            posted_texts_raw = json.load(f)
+            if isinstance(posted_texts_raw, list):
+                posted_texts = {item['text']: item['timestamp'] for item in posted_texts_raw if isinstance(item, dict)}
+            elif isinstance(posted_texts_raw, dict):
+                posted_texts = posted_texts_raw
+            else:
+                posted_texts = {}
         except json.JSONDecodeError:
             posted_texts = {}
 else:
@@ -40,22 +47,21 @@ def save_posted_texts():
         for text, timestamp in posted_texts.items()
         if now - timestamp < POSTED_TEXTS_EXPIRY_DAYS * 86400
     ]
-    with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(filtered, f, ensure_ascii=False, indent=2)
+    try:
+        with open(POSTED_TEXTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(filtered, f, ensure_ascii=False, indent=2)
+        print(f"[+] Сохранено {len(filtered)} записей в {POSTED_TEXTS_FILE}")
+    except Exception as e:
+        print(f"[!] Ошибка при сохранении posted_texts: {e}")
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'\b\d+[kKmM]?\b', '', text)
-    text = text.replace('\u2026', '')
-    text = text.replace('...', '')
-
+    text = text.replace('\u2026', '').replace('...', '')
     text = re.sub(r'\b(reposted|retweeted)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
-
-    # Удалить повторы слов в начале (например: "Crypto Rover Crypto Rover ·")
-    text = re.sub(r'^(\b\w+\b)( \1\b)+[\s·]*', r'\1 ', text, flags=re.IGNORECASE)
-
+    text = re.sub(r'^(\b\w+\b)( \1\b)+[\s\u00B7·]*', r'\1 ', text, flags=re.IGNORECASE)
     text = re.sub(r'\s+', ' ', text)
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
@@ -89,9 +95,11 @@ def send_to_telegram(text, image_urls):
     text = clean_text(text)
 
     if len(text) > 1024 or not text.strip() or contains_link_or_dots(text) or is_retweet(text):
+        print("[-] Сообщение отфильтровано")
         return
 
     if text in posted_texts and now - posted_texts[text] < POSTED_TEXTS_EXPIRY_DAYS * 86400:
+        print("[-] Сообщение уже опубликовано недавно")
         return
 
     posted_texts[text] = now
@@ -114,6 +122,7 @@ def send_to_telegram(text, image_urls):
             bot.send_media_group(chat_id=TELEGRAM_CHANNEL_ID, media=media)
         else:
             bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=text)
+        print(f"[+] Отправлено сообщение: {text[:60]}...")
     except Exception as e:
         print(f"Ошибка при отправке в Telegram: {e}")
     finally:
@@ -123,9 +132,7 @@ def send_to_telegram(text, image_urls):
 
 def should_skip_user(user):
     last_time = last_post_times.get(user)
-    if last_time and time.time() - last_time < 3600:
-        return True
-    return False
+    return last_time and time.time() - last_time < 3600
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
