@@ -18,7 +18,7 @@ TWITTER_USERS = [
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
-POSTED_TEXTS_FILE = 'posted_texts.json'
+POSTED_TEXTS_FILE = os.path.join(os.path.dirname(__file__), 'posted_texts.json')
 POSTED_TEXTS_EXPIRY_DAYS = 2
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
