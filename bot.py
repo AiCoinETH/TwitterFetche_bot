@@ -26,7 +26,6 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 last_post_times = {}
 DB_FILE = 'posted.db'
 
-
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -39,7 +38,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def is_hash_posted(text_hash):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -48,7 +46,6 @@ def is_hash_posted(text_hash):
     conn.close()
     return exists
 
-
 def mark_hash_as_posted(text_hash):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -56,11 +53,9 @@ def mark_hash_as_posted(text_hash):
     conn.commit()
     conn.close()
 
-
 def get_text_hash(original_text, user=None):
     unique_input = f"{user or ''}|{original_text.strip()}"
     return hashlib.sha256(unique_input.encode('utf-8')).hexdigest()
-
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
@@ -69,11 +64,10 @@ def clean_text(text):
     text = re.sub(r'\b(reposted|retweeted)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'^(\b\w+\b)( \1\b)+[\s\u00B7·]*', r'\1 ', text, flags=re.IGNORECASE)
+    text = re.sub(r'^(\b\w+\b)( \1\b)+[\s\u00B7\u00B7]*', r'\1 ', text, flags=re.IGNORECASE)
     text = re.sub(r'\s+', ' ', text)
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
-
 
 def contains_link_or_dots(text):
     return (
@@ -85,10 +79,8 @@ def contains_link_or_dots(text):
         text.strip().endswith('…')
     )
 
-
 def is_retweet(text):
     return text.startswith("Retweeted") or text.startswith("@")
-
 
 def download_image(url, filename):
     try:
@@ -100,7 +92,6 @@ def download_image(url, filename):
     except Exception as e:
         print(f"Ошибка при загрузке изображения: {e}")
     return None
-
 
 def send_to_telegram(original_text, cleaned_text, image_urls, user):
     now = time.time()
@@ -147,13 +138,13 @@ def send_to_telegram(original_text, cleaned_text, image_urls, user):
             file.close()
             os.remove(path)
 
-
 def should_skip_user(user):
     last_time = last_post_times.get(user)
-    return last_time and time.time() - last_time < 3600
-
+    return last_time and time.time() - last_time < 900  # 15 минут
 
 init_db()
+
+random.shuffle(TWITTER_USERS)
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -179,7 +170,6 @@ with sync_playwright() as p:
                 cleaned = clean_text(content)
                 images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
 
-                # Проверка времени публикации твита
                 timestamp_tag = soup.find('time')
                 if timestamp_tag and timestamp_tag.has_attr('datetime'):
                     tweet_time = datetime.strptime(timestamp_tag['datetime'], '%Y-%m-%dT%H:%M:%S.000Z')
