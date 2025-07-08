@@ -53,9 +53,8 @@ def mark_hash_as_posted(text_hash):
     conn.commit()
     conn.close()
 
-def get_text_hash(original_text, user=None):
-    unique_input = f"{user or ''}|{original_text.strip()}"
-    return hashlib.sha256(unique_input.encode('utf-8')).hexdigest()
+def get_text_hash(text):
+    return hashlib.sha256(text.strip().lower().encode('utf-8')).hexdigest()
 
 def clean_text(text):
     text = re.sub(r'https?://\S+', '', text)
@@ -65,6 +64,7 @@ def clean_text(text):
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^(\b\w+\b)( \1\b)+[\s\u00B7\u00B7]*', r'\1 ', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(\w+)( \1)+\b', r'\1', text, flags=re.IGNORECASE)  # Удаление повторов
     text = re.sub(r'\s+', ' ', text)
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
@@ -95,7 +95,7 @@ def download_image(url, filename):
 
 def send_to_telegram(original_text, cleaned_text, image_urls, user):
     now = time.time()
-    text_hash = get_text_hash(original_text, user)
+    text_hash = get_text_hash(cleaned_text)
 
     print(f"[DEBUG] Хеш текста: {text_hash}")
 
