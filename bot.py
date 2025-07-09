@@ -15,7 +15,7 @@ TWITTER_USERS = [
     'openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc',
     'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru',
     'ali_charts', 'WuBlockchain', 'CryptoMichNL', 'rektcapital', 'glassnode',
-    'intocryptoverse', 'woonomic', 'cryptoquant_com', 'Lookonchain', 'ToneVays'
+    'intocryptoverse', 'woonomic', 'cryptoquant_com', 'Lookonchain', 'ToneVays', 'ashcryptoreal'
 ]
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
@@ -151,38 +151,3 @@ def process_tweets():
                 page.wait_for_selector('article', timeout=30000)
                 tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
                 new_posts_found = False
-
-                for tweet in tweets:
-                    html = tweet.inner_html()
-                    soup = BeautifulSoup(html, 'html.parser')
-                    content = ' '.join([el.get_text() for el in soup.find_all('span')])
-                    cleaned = clean_text(content)
-                    images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
-
-                    timestamp_tag = soup.find('time')
-                    if timestamp_tag and timestamp_tag.has_attr('datetime'):
-                        tweet_time = datetime.strptime(timestamp_tag['datetime'], '%Y-%m-%dT%H:%M:%S.000Z')
-                        if tweet_time < datetime.utcnow() - timedelta(hours=1):
-                            print(f"[-] Пропущен старый твит от {user}")
-                            continue
-
-                    send_to_telegram(content, cleaned, images, user)
-                    new_posts_found = True
-                    time.sleep(random.randint(45, 90))
-
-                if new_posts_found:
-                    last_post_times[user] = time.time()
-
-            except PlaywrightTimeoutError:
-                print(f"[!] Превышено время ожидания для пользователя: {user}")
-            except Exception as e:
-                print(f"[!] Ошибка при обработке пользователя {user}: {e}")
-
-        browser.close()
-
-# Основной однократный запуск (для GitHub Actions)
-if __name__ == "__main__":
-    print(f"\n===== Запуск сканирования: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC =====")
-    init_db()
-    process_tweets()
-    print("[✓] Завершено.")
