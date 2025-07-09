@@ -180,10 +180,9 @@ def process_tweets():
 
         browser.close()
 
-# Основной цикл
-init_db()
-while True:
+# Основной однократный запуск (для GitHub Actions)
+if __name__ == "__main__":
     print(f"\n===== Запуск сканирования: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC =====")
+    init_db()
     process_tweets()
-    print("[✓] Завершено. Ожидание следующего запуска через 1 час.\n")
-    time.sleep(3600)
+    print("[✓] Завершено.")
