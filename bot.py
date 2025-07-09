@@ -57,6 +57,9 @@ def get_text_hash(text):
     return hashlib.sha256(text.strip().lower().encode('utf-8')).hexdigest()
 
 def clean_text(text):
+    if '· ' in text:
+        text = text.split('· ', 1)[1]
+
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'\b\d+[kKmM]?\b', '', text)
     text = text.replace('\u2026', '').replace('...', '')
@@ -181,7 +184,6 @@ def process_tweets():
 
         browser.close()
 
-# Основной однократный запуск (для GitHub Actions)
 if __name__ == "__main__":
     print(f"\n===== Запуск сканирования: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC =====")
     init_db()
