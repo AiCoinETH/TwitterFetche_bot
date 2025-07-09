@@ -3,26 +3,25 @@ import re
 import time
 import random
 import requests
-import json
 import hashlib
 import sqlite3
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from telegram import Bot, InputMediaPhoto
-from telegram.ext import Updater
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Настройки
 TWITTER_USERS = [
     'openai', 'aicoin_eth', 'whale_alert', 'bitcoinmagazine', 'rovercrc',
-    'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru'
+    'cryptobeastreal', 'bitcoin', 'cryptojack', 'watcherguru',
+    'ali_charts', 'WuBlockchain', 'CryptoMichNL', 'rektcapital', 'glassnode',
+    'intocryptoverse', 'woonomic', 'cryptoquant_com', 'Lookonchain', 'ToneVays'
 ]
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID')
 MAX_TWEETS_PER_USER = 3
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-
 last_post_times = {}
 DB_FILE = 'posted.db'
 
@@ -64,7 +63,7 @@ def clean_text(text):
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'\b(Bitcoin Magazine|BitcoinConfAsia)\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^(\b\w+\b)( \1\b)+[\s\u00B7\u00B7]*', r'\1 ', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(\w+)( \1)+\b', r'\1', text, flags=re.IGNORECASE)  # Удаление повторов
+    text = re.sub(r'\b(\w+)( \1)+\b', r'\1', text, flags=re.IGNORECASE)
     text = re.sub(r'\s+', ' ', text)
     text = ' '.join(word for word in text.split() if not word.startswith('#'))
     return text.strip()
@@ -94,19 +93,13 @@ def download_image(url, filename):
     return None
 
 def send_to_telegram(original_text, cleaned_text, image_urls, user):
-    now = time.time()
     text_hash = get_text_hash(cleaned_text)
-
-    print(f"[DEBUG] Хеш текста: {text_hash}")
-
     if not cleaned_text or len(cleaned_text) < 10:
         print("[-] Пропущено: слишком короткий или пустой текст")
         return
-
     if len(cleaned_text) > 1024 or contains_link_or_dots(cleaned_text) or is_retweet(cleaned_text):
         print("[-] Сообщение отфильтровано")
         return
-
     if is_hash_posted(text_hash):
         print("[-] Сообщение уже отправлено ранее, пропускаем")
         return
@@ -142,51 +135,55 @@ def should_skip_user(user):
     last_time = last_post_times.get(user)
     return last_time and time.time() - last_time < 900  # 15 минут
 
+def process_tweets():
+    random.shuffle(TWITTER_USERS)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+        for user in TWITTER_USERS:
+            if should_skip_user(user):
+                print(f"[-] Пропускаем {user}, недавно публиковали.")
+                continue
+            try:
+                page.goto(f'https://twitter.com/{user}')
+                page.wait_for_timeout(5000)
+                page.wait_for_selector('article', timeout=30000)
+                tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
+                new_posts_found = False
+
+                for tweet in tweets:
+                    html = tweet.inner_html()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    content = ' '.join([el.get_text() for el in soup.find_all('span')])
+                    cleaned = clean_text(content)
+                    images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
+
+                    timestamp_tag = soup.find('time')
+                    if timestamp_tag and timestamp_tag.has_attr('datetime'):
+                        tweet_time = datetime.strptime(timestamp_tag['datetime'], '%Y-%m-%dT%H:%M:%S.000Z')
+                        if tweet_time < datetime.utcnow() - timedelta(hours=1):
+                            print(f"[-] Пропущен старый твит от {user}")
+                            continue
+
+                    send_to_telegram(content, cleaned, images, user)
+                    new_posts_found = True
+                    time.sleep(random.randint(45, 90))
+
+                if new_posts_found:
+                    last_post_times[user] = time.time()
+
+            except PlaywrightTimeoutError:
+                print(f"[!] Превышено время ожидания для пользователя: {user}")
+            except Exception as e:
+                print(f"[!] Ошибка при обработке пользователя {user}: {e}")
+
+        browser.close()
+
+# Основной цикл
 init_db()
-
-random.shuffle(TWITTER_USERS)
-
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    for user in TWITTER_USERS:
-        if should_skip_user(user):
-            print(f"[-] Пропускаем {user}, недавно публиковали.")
-            continue
-
-        try:
-            page.goto(f'https://twitter.com/{user}')
-            page.wait_for_timeout(5000)
-            page.wait_for_selector('article', timeout=30000)
-            tweets = page.query_selector_all('article')[:MAX_TWEETS_PER_USER]
-
-            new_posts_found = False
-
-            for tweet in tweets:
-                html = tweet.inner_html()
-                soup = BeautifulSoup(html, 'html.parser')
-                content = ' '.join([el.get_text() for el in soup.find_all('span')])
-                cleaned = clean_text(content)
-                images = [img.get('src') for img in soup.find_all('img') if 'profile_images' not in img.get('src') and 'emoji' not in img.get('src')]
-
-                timestamp_tag = soup.find('time')
-                if timestamp_tag and timestamp_tag.has_attr('datetime'):
-                    tweet_time = datetime.strptime(timestamp_tag['datetime'], '%Y-%m-%dT%H:%M:%S.000Z')
-                    if tweet_time < datetime.utcnow() - timedelta(hours=1):
-                        print(f"[-] Пропущен старый твит от {user}")
-                        continue
-
-                send_to_telegram(content, cleaned, images, user)
-                new_posts_found = True
-                time.sleep(random.randint(45, 90))
-
-            if new_posts_found:
-                last_post_times[user] = time.time()
-
-        except PlaywrightTimeoutError:
-            print(f"[!] Превышено время ожидания для пользователя: {user}")
-        except Exception as e:
-            print(f"[!] Ошибка при обработке пользователя {user}: {e}")
-
-    browser.close()
+while True:
+    print(f"\n===== Запуск сканирования: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC =====")
+    process_tweets()
+    print("[✓] Завершено. Ожидание следующего запуска через 1 час.\n")
+    time.sleep(3600)
